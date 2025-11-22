@@ -22,7 +22,7 @@ using static LocalizedText;
 
 namespace PeakLevelSelect
 {
-    [BepInEx.BepInPlugin("PeakLevelSelect", "PeakLevelSelect", "1.0.0")]
+    [BepInEx.BepInPlugin("PeakLevelSelect", "PeakLevelSelect", "1.0.1")]
     public class PeakLevelSelectPlugin : BepInEx.BaseUnityPlugin
     {
         internal static ManualLogSource logger = null;
@@ -54,7 +54,7 @@ namespace PeakLevelSelect
             {
                 levelIndex = todayLevelIndex;
             }
-            else if(PeakLevelSelectPlugin.SelectedLevel.Value < SingletonAsset<MapBaker>.Instance.AllLevels.Length)
+            else if (PeakLevelSelectPlugin.SelectedLevel.Value < SingletonAsset<MapBaker>.Instance.AllLevels.Length)
             {
                 levelIndex = PeakLevelSelectPlugin.SelectedLevel.Value;
             }
@@ -78,9 +78,8 @@ namespace PeakLevelSelect
             }
             else
             {
-                todayLevelIndex = -1;
+                todayLevelIndex = -3;
             }
-
             buttons = new List<GameObject>();
             GameObject referenceButton = GameObject.Find("GAME/GUIManager/Canvas_BoardingPass/BoardingPass/Panel/Ascent/IncrementButton");
             if (referenceButton == null)
@@ -96,21 +95,48 @@ namespace PeakLevelSelect
             }
             var referenceFont = GameObject.Find("GAME/GUIManager/Canvas_BoardingPass/BoardingPass/Panel/BOARDING PASS");
             font = referenceFont.GetComponent<TMPro.TextMeshProUGUI>().font;
-            GameObject button1 = CreateButton(referenceButton, panel, GetText("Random"), new Vector2(140, 80), (sender) =>
+            GameObject button1 = CreateButton(referenceButton, panel, GetText("Random"), new Vector2(140, 75), (sender) =>
             {
-                dropDownText.text = GetText("Random");
-                PeakLevelSelectPlugin.SelectedLevel.Value = -2;
+                RandomInvoke();
             });
             buttons.Add(button1);
             float buttonWidth = button1.GetComponent<RectTransform>().sizeDelta.x;
-            GameObject button2 = CreateButton(referenceButton, panel, GetText("Daily") + $"({todayLevelIndex})", new Vector2(140 + buttonWidth + 20, 80), (sender) =>
+            var DailyText = GetText("Daily");
+            if (todayLevelIndex != -3)
             {
-                dropDownText.text = GetText("Daily");
-                PeakLevelSelectPlugin.SelectedLevel.Value = -1;
+                DailyText += $"({todayLevelIndex})";
+            }
+            GameObject button2 = CreateButton(referenceButton, panel, DailyText, new Vector2(140 + buttonWidth + 20, 75), (sender) =>
+            {
+                DailyInvoke();
             });
             buttons.Add(button2);
+
+            var Reward = GameObject.Find("GAME/GUIManager/Canvas_BoardingPass/BoardingPass/Panel/Ascent/Reward");
+            if (Reward != null)
+            {
+                var RewardRect = Reward.GetComponent<RectTransform>();
+                RewardRect.anchoredPosition = new Vector2(RewardRect.anchoredPosition.x, -10);
+            }
             PeakLevelSelectPlugin.logger.LogInfo("Create Button Sussecs!");
             CreateDropdown(panel);
+        }
+
+        private static void RandomInvoke()
+        {
+            dropDownText.text = GetText("Random");
+            PeakLevelSelectPlugin.SelectedLevel.Value = -2;
+        }
+
+        private static void DailyInvoke()
+        {
+            dropDownText.text = GetText("Daily");
+            var map = SingletonAsset<MapBaker>.Instance;
+            if (todayLevelIndex != -3 && todayLevelIndex < map.selectedBiomes.Count)
+            {
+                dropDownText.text += $"({string.Join(",", map.selectedBiomes[todayLevelIndex].selectedBiomes.Where(x => x != Biome.BiomeType.Shore && x != Biome.BiomeType.Volcano).Select(x => LocalizedText.GetText(x.ToString())))})";
+            }
+            PeakLevelSelectPlugin.SelectedLevel.Value = -1;
         }
 
         private static int todayLevelIndex;
@@ -123,16 +149,18 @@ namespace PeakLevelSelect
 
         private static TextMeshProUGUI dropDownText;
 
+        private static Image dropdownImage;
+
         private static List<string> MakeList(params (LocalizedText.Language lang, string text)[] items)
         {
-            var list = new List<string>(new string[LocalizedText.LANGUAGE_COUNT]); 
+            var list = new List<string>(new string[LocalizedText.LANGUAGE_COUNT]);
 
             foreach (var (lang, text) in items)
             {
                 list[(int)lang] = text;
             }
 
-            
+
             for (int i = 0; i < LocalizedText.LANGUAGE_COUNT; i++)
             {
                 if (string.IsNullOrEmpty(list[i]))
@@ -152,7 +180,7 @@ namespace PeakLevelSelect
                 dropdownRect.anchorMin = new Vector2(0, 0);
                 dropdownRect.anchorMax = new Vector2(0, 0);
                 dropdownRect.pivot = new Vector2(0, 0);
-                dropdownRect.anchoredPosition = new Vector2(480, 80);
+                dropdownRect.anchoredPosition = new Vector2(520, 75);
                 dropdownRect.sizeDelta = new Vector2(0, 65);
 
                 var backgroundImage = dropdownGO.AddComponent<Image>();
@@ -163,8 +191,8 @@ namespace PeakLevelSelect
                 backgroundImage.material = image.material;
                 backgroundImage.overrideSprite = image.overrideSprite;
                 backgroundImage.raycastTarget = image.raycastTarget;
+                dropdownImage = backgroundImage;
 
-                
                 GameObject labelGO = new GameObject("Label");
                 labelGO.transform.SetParent(dropdownGO.transform, false);
 
@@ -181,15 +209,15 @@ namespace PeakLevelSelect
                 labelRect.offsetMin = new Vector2(10, 6);
                 labelRect.offsetMax = new Vector2(-30, -7);
 
-                
+
                 GameObject arrowGO = new GameObject("Arrow");
                 arrowGO.transform.SetParent(dropdownGO.transform, false);
 
                 var arrow = arrowGO.AddComponent<TextMeshProUGUI>();
                 arrow.font = font;
-                arrow.color = Color.black;
+                arrow.color = Color.white;
                 arrow.text = "▼";
-                arrow.fontSize = 12;
+                arrow.fontSize = 24;
                 arrow.alignment = TextAlignmentOptions.Center;
 
                 RectTransform arrowRect = arrow.GetComponent<RectTransform>();
@@ -197,7 +225,7 @@ namespace PeakLevelSelect
                 arrowRect.anchorMax = new Vector2(1, 0.5f);
                 arrowRect.pivot = new Vector2(1, 0.5f);
                 arrowRect.sizeDelta = new Vector2(20, 20);
-                arrowRect.anchoredPosition = new Vector2(-10, 0);
+                arrowRect.anchoredPosition = new Vector2(-20, 0);
 
                 GameObject templateGO = new GameObject("Template");
                 templateGO.transform.SetParent(dropdownGO.transform, false);
@@ -212,12 +240,12 @@ namespace PeakLevelSelect
                 PeakLevelSelectPlugin.logger.LogInfo($"AllLevels: {map.AllLevels.Length}");
                 templateRect.sizeDelta = new Vector2(0, map.AllLevels.Length * 25);
 
-                
+
                 var templateImage = templateGO.AddComponent<Image>();
                 templateImage.color = new Color(0.2f, 0.2f, 0.2f);
                 templateGO.AddComponent<RectMask2D>();
 
-                
+
                 GameObject viewportGO = new GameObject("Viewport");
                 viewportGO.transform.SetParent(templateGO.transform, false);
 
@@ -227,10 +255,10 @@ namespace PeakLevelSelect
                 viewportRect.sizeDelta = Vector2.zero;
 
                 var viewportImage = viewportGO.AddComponent<Image>();
-                viewportImage.color = Color.clear;    
+                viewportImage.color = Color.clear;
                 viewportImage.raycastTarget = false;
 
-                
+
                 GameObject contentGO = new GameObject("Content");
                 contentGO.transform.SetParent(viewportGO.transform, false);
 
@@ -251,7 +279,7 @@ namespace PeakLevelSelect
                 itemRect.pivot = new Vector2(0.5f, 1);
                 itemRect.sizeDelta = new Vector2(0, 25);
 
-                
+
                 GameObject itemBG = new GameObject("Item Background");
                 itemBG.transform.SetParent(itemGO.transform, false);
                 var itemBGImage = itemBG.AddComponent<Image>();
@@ -279,7 +307,7 @@ namespace PeakLevelSelect
 
                 itemToggle.graphic = checkImg;
 
-                
+
                 GameObject itemLabelGO = new GameObject("Item Label");
                 itemLabelGO.transform.SetParent(itemGO.transform, false);
 
@@ -323,9 +351,9 @@ namespace PeakLevelSelect
                     }
                     dropdown.options.Add(new TMP_Dropdown.OptionData(text));
                 }
-                dropdownRect.sizeDelta = new Vector2(maxWidth + 40, dropdownRect.sizeDelta.y);
+                dropdownRect.sizeDelta = new Vector2(maxWidth + 80, dropdownRect.sizeDelta.y);
                 float itemHeight = 25f;
-                float maxVisibleCount = 8; 
+                float maxVisibleCount = 8;
                 float templateHeight = Mathf.Min(map.AllLevels.Length * itemHeight, maxVisibleCount * itemHeight);
                 templateRect.sizeDelta = new Vector2(0, templateHeight);
                 var scrollRect = templateGO.AddComponent<ScrollRect>();
@@ -347,14 +375,15 @@ namespace PeakLevelSelect
                     {
                         item.GetComponent<Image>().color = new Color(0.1922f, 0.2941f, 0.9804f, 1);
                     }
+                    dropdownImage.color = new Color(0.9804f, 0.8075f, 0.1922f, 1);
                 });
                 if (PeakLevelSelectPlugin.SelectedLevel.Value == -1)
                 {
-                    buttons[1].GetComponent<Button>().onClick.Invoke();
+                    DailyInvoke();
                 }
                 else if (PeakLevelSelectPlugin.SelectedLevel.Value == -2)
                 {
-                    buttons[0].GetComponent<Button>().onClick.Invoke();
+                    RandomInvoke();
                 }
                 else
                 {
@@ -362,6 +391,7 @@ namespace PeakLevelSelect
                     {
                         dropdown.value = PeakLevelSelectPlugin.SelectedLevel.Value;
                         dropdown.RefreshShownValue();
+                        dropdownImage.color = new Color(0.9804f, 0.8075f, 0.1922f, 1);
                     }
                 }
             }
@@ -373,7 +403,7 @@ namespace PeakLevelSelect
 
         public static string GetText(string key, params object[] args)
         {
-            
+
             if (!langTable.TryGetValue(key, out var list))
                 return args.Length > 0 ? string.Format(key, args) : key;
 
@@ -385,7 +415,7 @@ namespace PeakLevelSelect
 
         private static GameObject CreateButton(GameObject referenceButton, Transform parent, string buttonText, Vector2 position, UnityEngine.Events.UnityAction<GameObject> onClick)
         {
-            
+
             GameObject button = GameObject.Instantiate(referenceButton);
             button.name = "Button_" + buttonText;
             button.transform.SetParent(parent, false);
@@ -395,24 +425,25 @@ namespace PeakLevelSelect
             {
                 image = button.GetComponent<Image>();
             }
-            
+
             RectTransform rect = button.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(145, rect.sizeDelta.y);
+            rect.sizeDelta = new Vector2(170, rect.sizeDelta.y);
             rect.anchorMin = new Vector2(0, 0);
             rect.anchorMax = new Vector2(0, 0);
             rect.pivot = new Vector2(0, 0);
             rect.anchoredPosition = position;
 
-            
+
             CreateButtonText(button, buttonText);
 
-            
+
             Button buttonComp = button.GetComponent<Button>();
             buttonComp.onClick.RemoveAllListeners();
             buttonComp.onClick.AddListener(() =>
             {
                 foreach (var item in buttons)
                 {
+                    dropdownImage.color = new Color(0.1922f, 0.2941f, 0.9804f, 1);
                     if (item == button)
                     {
                         item.GetComponent<Image>().color = new Color(0.9804f, 0.8075f, 0.1922f, 1);
