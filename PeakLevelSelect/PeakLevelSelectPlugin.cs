@@ -22,17 +22,19 @@ using static LocalizedText;
 
 namespace PeakLevelSelect
 {
-    [BepInEx.BepInPlugin("PeakLevelSelect", "PeakLevelSelect", "1.0.1")]
+    [BepInEx.BepInPlugin("PeakLevelSelect", "PeakLevelSelect", "1.0.2")]
     public class PeakLevelSelectPlugin : BepInEx.BaseUnityPlugin
     {
         internal static ManualLogSource logger = null;
 
         public static ConfigEntry<int> SelectedLevel { get; set; }
+        public static ConfigEntry<int> SelectedAscent { get; set; }
 
         void Awake()
         {
             logger = base.Logger;
             SelectedLevel = Config.Bind<int>("General", "SelectedLevel", -2, "-2 = Random,-1 = Daily,0-14=Level_Num");
+            SelectedAscent = Config.Bind<int>("General", "SelectedAscent", -2, "-2 = Default,-1-7 = AscentNum");
             Harmony.CreateAndPatchAll(typeof(GUIManagerPatch), null);
         }
     }
@@ -41,6 +43,13 @@ namespace PeakLevelSelect
     public static class GUIManagerPatch
     {
         private static Dictionary<string, List<string>> langTable { get; set; }
+
+        [HarmonyPatch(typeof(BoardingPass), "UpdateAscent")]
+        [HarmonyPostfix]
+        public static void UpdateAscent(BoardingPass __instance)
+        {
+            PeakLevelSelectPlugin.SelectedAscent.Value = __instance.ascentIndex;
+        }
 
         [HarmonyPatch(typeof(MapBaker), "GetLevel")]
         [HarmonyPrefix]
@@ -81,6 +90,9 @@ namespace PeakLevelSelect
                 todayLevelIndex = -3;
             }
             buttons = new List<GameObject>();
+            var Canvas_BoardingPass = GameObject.Find("GAME/GUIManager/Canvas_BoardingPass");
+            var boardingPass = Canvas_BoardingPass.GetComponent<BoardingPass>();
+
             GameObject referenceButton = GameObject.Find("GAME/GUIManager/Canvas_BoardingPass/BoardingPass/Panel/Ascent/IncrementButton");
             if (referenceButton == null)
             {
@@ -93,6 +105,7 @@ namespace PeakLevelSelect
                 Debug.LogError("fail Panel fail!");
                 return;
             }
+            To1 = GameObject.Find("GAME/GUIManager/Canvas_BoardingPass/BoardingPass/Panel/To (1)").GetComponent<TextMeshProUGUI>();
             var referenceFont = GameObject.Find("GAME/GUIManager/Canvas_BoardingPass/BoardingPass/Panel/BOARDING PASS");
             font = referenceFont.GetComponent<TMPro.TextMeshProUGUI>().font;
             GameObject button1 = CreateButton(referenceButton, panel, GetText("Random"), new Vector2(140, 75), (sender) =>
@@ -120,12 +133,19 @@ namespace PeakLevelSelect
             }
             PeakLevelSelectPlugin.logger.LogInfo("Create Button Sussecs!");
             CreateDropdown(panel);
+            if (PeakLevelSelectPlugin.SelectedAscent.Value != -2)
+            {
+                boardingPass.ascentIndex = PeakLevelSelectPlugin.SelectedAscent.Value;
+                boardingPass.UpdateAscent();
+            }
         }
 
         private static void RandomInvoke()
         {
             dropDownText.text = GetText("Random");
             PeakLevelSelectPlugin.SelectedLevel.Value = -2;
+            buttons[0].GetComponent<Image>().color = new Color(0.9804f, 0.8075f, 0.1922f, 1);
+            To1.text = "???";
         }
 
         private static void DailyInvoke()
@@ -134,9 +154,15 @@ namespace PeakLevelSelect
             var map = SingletonAsset<MapBaker>.Instance;
             if (todayLevelIndex != -3 && todayLevelIndex < map.selectedBiomes.Count)
             {
+                To1.text = todayLevelIndex.ToString();
                 dropDownText.text += $"({string.Join(",", map.selectedBiomes[todayLevelIndex].selectedBiomes.Where(x => x != Biome.BiomeType.Shore && x != Biome.BiomeType.Volcano).Select(x => LocalizedText.GetText(x.ToString())))})";
             }
+            else
+            {
+                To1.text = "0";
+            }
             PeakLevelSelectPlugin.SelectedLevel.Value = -1;
+            buttons[1].GetComponent<Image>().color = new Color(0.9804f, 0.8075f, 0.1922f, 1);
         }
 
         private static int todayLevelIndex;
@@ -148,6 +174,8 @@ namespace PeakLevelSelect
         private static List<GameObject> buttons { get; set; }
 
         private static TextMeshProUGUI dropDownText;
+
+        private static TextMeshProUGUI To1;
 
         private static Image dropdownImage;
 
@@ -370,6 +398,7 @@ namespace PeakLevelSelect
                 contentRect.sizeDelta = new Vector2(0, map.AllLevels.Length * itemHeight);
                 dropdown.onValueChanged.AddListener((value) =>
                 {
+                    To1.text = value.ToString();
                     PeakLevelSelectPlugin.SelectedLevel.Value = value;
                     foreach (var item in buttons)
                     {
@@ -390,6 +419,7 @@ namespace PeakLevelSelect
                     if (PeakLevelSelectPlugin.SelectedLevel.Value < dropdown.options.Count)
                     {
                         dropdown.value = PeakLevelSelectPlugin.SelectedLevel.Value;
+                        To1.text = dropdown.value.ToString();
                         dropdown.RefreshShownValue();
                         dropdownImage.color = new Color(0.9804f, 0.8075f, 0.1922f, 1);
                     }
